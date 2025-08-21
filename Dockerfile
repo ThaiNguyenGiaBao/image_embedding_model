@@ -19,4 +19,4 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 RUN rm -rf /root/.cache
 
-CMD [ "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8888" ]
+CMD [ "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8889" ]
