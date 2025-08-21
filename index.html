@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Similarity Search – Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-950 text-slate-100">
+    <header class="sticky top-0 z-10 bg-slate-950/80 backdrop-blur border-b border-slate-800">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <h1 class="text-xl font-semibold">Image Similarity Search</h1>
+            <p class="text-slate-400 text-sm mt-1">By ThaiNguyenGiaBao</p>
+
+            <form id="search-form" class="mt-4 flex flex-col sm:flex-row gap-3">
+                <input id="image-url" type="url" required placeholder="https://example.com/image.jpg"
+                    class="w-full rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-cyan-400/40" />
+                <button type="submit"
+                    class="rounded-xl bg-cyan-500/20 border border-cyan-400/30 text-cyan-200 px-4 py-3 text-sm hover:bg-cyan-500/30">
+                    Search
+                </button>
+                <button type="button" id="demo-btn"
+                    class="rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-sm hover:bg-slate-700">
+                    Demo
+                </button>
+            </form>
+
+            <div id="query-preview" class="hidden mt-3 flex items-start gap-4">
+                <img id="preview-img" src="" alt="query"
+                    class="h-24 w-24 object-cover rounded-lg border border-slate-800" />
+                <div class="text-xs text-slate-400">
+                    <div class="font-medium text-slate-300">Query</div>
+                    <div id="preview-url" class="truncate max-w-[70vw]"></div>
+                    <div id="result-count" class="mt-1"></div>
+                </div>
+            </div>
+
+            <!-- Timing panel -->
+            <div id="timing-panel" class="hidden mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="rounded-xl border border-slate-800 bg-slate-900 p-3">
+                    <div class="text-[11px] text-slate-400">Encode (server)</div>
+                    <div id="encode-time" class="text-sm font-mono text-slate-200">–</div>
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900 p-3">
+                    <div class="text-[11px] text-slate-400">Query (server)</div>
+                    <div id="query-time" class="text-sm font-mono text-slate-200">–</div>
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900 p-3">
+                    <div class="text-[11px] text-slate-400">Total (server)</div>
+                    <div id="total-time" class="text-sm font-mono text-slate-200">–</div>
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900 p-3">
+                    <div class="text-[11px] text-slate-400">Round-trip (client)</div>
+                    <div id="client-time" class="text-sm font-mono text-slate-200">–</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6">
+        <div id="notice"
+            class="hidden mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 px-4 py-3 text-sm">
+        </div>
+        <div id="error"
+            class="hidden mb-4 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-200 px-4 py-3 text-sm">
+        </div>
+
+        <div id="loading" class="hidden my-10 flex items-center gap-3 text-slate-400">
+            <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            Loading…
+        </div>
+
+        <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        <div id="empty" class="hidden mt-10 text-center text-slate-400">
+            Paste an image URL above, or click <span class="text-slate-200 font-medium">Demo</span>.
+        </div>
+    </main>
+
+    <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+        Rendered by Tailwind • Qdrant results viewer
+    </footer>
+
+    <script>
+        // ====== CONFIG ======
+        const API_ENDPOINT = "/search"; // change if your route differs
+
+        // ====== DEMO DATA (your provided JSON) ======
+        const DEMO_DATA = [
+            { "id": "f1ed7ffb-1fe7-4332-a690-141dcf34115c", "score": 1, "source_product_id": "B0BKGMLC6Z", "source_variant_id": "B097G3826W", "image": "https://m.media-amazon.com/images/I/719CKBe6igL._AC_SL1500_.jpg", "source": "amazon", "options": [] },
+            { "id": "3ee03055-831e-40fd-8439-a17dc5cfadc9", "score": 0.99606705, "source_product_id": "B0BKGMLC6Z", "source_variant_id": "B097G3826W", "image": "https://m.media-amazon.com/images/I/719CKBe6igL._AC_SL1500_.jpg", "source": "amazon", "options": [] },
+            { "id": "2a600623-0b97-488c-ab5c-cbf9713ed6e0", "score": 0.99606705, "source_product_id": "B0BKGMLC6Z", "source_variant_id": "B097G3826W", "image": "https://m.media-amazon.com/images/I/719CKBe6igL._AC_SL1500_.jpg", "source": "amazon", "options": [] },
+            { "id": "b546413c-bce1-4131-81b9-6d42bfdcc54d", "score": 0.99606705, "source_product_id": "B0BKGMLC6Z", "source_variant_id": "B097G3826W", "image": "https://m.media-amazon.com/images/I/719CKBe6igL._AC_SL1500_.jpg", "source": "amazon", "options": [] },
+            { "id": "40c24e7c-c65a-40d9-82ba-7592572c2f01", "score": 0.86091614, "source_product_id": "B0DK46VRQ5", "source_variant_id": "B0CRK2XRHF", "image": "https://m.media-amazon.com/images/I/51Fde0YFIqL.jpg", "source": "amazon", "options": ["color", "style"] },
+            { "id": "29d39563-2151-4b7c-ae8b-91a3fcef3eed", "score": 0.80960464, "source_product_id": "B0BSGWVFHQ", "source_variant_id": "B0BXNZFCJG", "image": "https://m.media-amazon.com/images/I/71rxrLw3LfL.jpg", "source": "amazon", "options": ["color"] },
+            { "id": "3ea82e81-7ab0-4607-b087-6b1cff83ca1b", "score": 0.8052101, "source_product_id": "B0DKDXF76M", "source_variant_id": "B0D1R7W21Y", "image": "https://m.media-amazon.com/images/I/717ftdViA2L.jpg", "source": "amazon", "options": ["color"] },
+            { "id": "fa60f2e7-ae71-4789-ace4-cb79a5513569", "score": 0.79592514, "source_product_id": "B0DM5L7ZVC", "source_variant_id": "B0D4M6CYV7", "image": "https://m.media-amazon.com/images/I/61b24K0Yw0L.jpg", "source": "amazon", "options": ["style"] },
+            { "id": "4df525f7-142c-42b2-8e14-0f1a47002a81", "score": 0.7885933, "source_product_id": "B098B3F4NZ", "source_variant_id": "B098B25ZVK", "image": "https://m.media-amazon.com/images/I/71VXAyN0MYL.jpg", "source": "amazon", "options": ["color"] },
+            { "id": "7d3c2c28-48b6-4f97-a7be-d4f7e60b8a0a", "score": 0.77350235, "source_product_id": "B0BSGWVFHQ", "source_variant_id": "B08QYYY11X", "image": "https://m.media-amazon.com/images/I/71xXPSJ+lSL.jpg", "source": "amazon", "options": ["color"] }
+        ];
+
+        // ====== DOM ======
+        const frm = document.getElementById("search-form");
+        const urlInput = document.getElementById("image-url");
+        const grid = document.getElementById("grid");
+        const empty = document.getElementById("empty");
+        const err = document.getElementById("error");
+        const notice = document.getElementById("notice");
+        const loading = document.getElementById("loading");
+        const demoBtn = document.getElementById("demo-btn");
+        const qWrap = document.getElementById("query-preview");
+        const qImg = document.getElementById("preview-img");
+        const qUrl = document.getElementById("preview-url");
+        const qCount = document.getElementById("result-count");
+
+        // Timing panel nodes
+        const timingPanel = document.getElementById("timing-panel");
+        const encodeEl = document.getElementById("encode-time");
+        const queryEl = document.getElementById("query-time");
+        const totalEl = document.getElementById("total-time");
+        const clientEl = document.getElementById("client-time");
+
+        // ====== Helpers ======
+        function pct(score) {
+            const x = Number(score) * 100;
+            return Math.max(0, Math.min(100, Math.round(x * 10) / 10));
+        }
+        function fmtSec(x) {
+            if (x == null || Number.isNaN(x)) return "–";
+            return `${Number(x).toFixed(3)} s`;
+        }
+        function clearUI() {
+            grid.innerHTML = "";
+            err.classList.add("hidden");
+            notice.classList.add("hidden");
+            empty.classList.add("hidden");
+            qWrap.classList.add("hidden");
+            timingPanel.classList.add("hidden");
+        }
+        function showError(message) {
+            err.textContent = message;
+            err.classList.remove("hidden");
+        }
+        function setQueryPreview(imageUrl, count) {
+            qImg.src = imageUrl;
+            qUrl.textContent = imageUrl;
+            qCount.textContent = `Results: ${count}`;
+            qWrap.classList.remove("hidden");
+        }
+        function showTiming(serverTiming, clientSeconds) {
+            // Fill server timing if available
+            if (serverTiming) {
+                encodeEl.textContent = fmtSec(serverTiming.encode_time_sec);
+                queryEl.textContent = fmtSec(serverTiming.query_time_sec);
+                totalEl.textContent = fmtSec(serverTiming.total_time_sec);
+            } else {
+                encodeEl.textContent = "–";
+                queryEl.textContent = "–";
+                totalEl.textContent = "–";
+            }
+            clientEl.textContent = fmtSec(clientSeconds);
+            timingPanel.classList.remove("hidden");
+        }
+        function card(item) {
+            const percent = pct(item.score);
+            const options = Array.isArray(item.options) ? item.options : [];
+            const sourceUrl = item.source === "amazon"
+                ? `https://www.amazon.com/dp/${item.source_product_id}`
+                : `https://www.aliexpress.com/item/${item.source_product_id}.html`;
+            return `
+        <article class="rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow">
+          <a href="${item.image}" target="_blank" rel="noreferrer">
+            <img src="${item.image}" alt="thumb" class="w-full aspect-square object-cover">
+          </a>
+          <div class="p-4 space-y-3">
+            <div class="text-xs text-slate-400">Similarity: <span class="text-slate-200">${percent}%</span></div>
+            <div class="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-cyan-400 to-blue-400" style="width:${percent}%"></div>
+            </div>
+
+            <div class="text-xs grid grid-cols-3 gap-2">
+              <div class="col-span-3">
+                <div class="text-slate-400">Product</div>
+                <a
+                    class="block font-mono text-slate-200 break-all"
+                    href="${sourceUrl}"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    ${item.source_product_id}
+                </a>
+                </div>
+
+              <div class="col-span-3">
+                <div class="text-slate-400">Variant</div>
+                <div class="font-mono break-all">${item.source_variant_id}</div>
+              </div>
+              <div class="col-span-3">
+                <div class="text-slate-400">ID</div>
+                <div class="font-mono break-all">${item.id}</div>
+              </div>
+            </div>
+
+            ${options.length ? `
+              <div class="flex flex-wrap gap-2 pt-1">
+                ${options.map(o => `<span class="text-[11px] px-2 py-1 rounded-full border border-slate-700 text-slate-200 bg-slate-800">${o}</span>`).join("")}
+              </div>` : ``}
+          </div>
+        </article>
+      `;
+        }
+        function render(items, imageUrlForPreview = null) {
+            clearUI();
+            if (!items || items.length === 0) {
+                empty.classList.remove("hidden");
+                return;
+            }
+            grid.innerHTML = items.map(card).join("");
+            if (imageUrlForPreview) setQueryPreview(imageUrlForPreview, items.length);
+        }
+
+        // Accept both { data: [...] } and raw [...]
+        function normalizeResponse(json) {
+            if (Array.isArray(json)) return { data: json, timing: null };
+            if (json && Array.isArray(json.data)) return { data: json.data, timing: json.timing || null };
+            return { data: [], timing: null };
+        }
+
+        // ====== Events ======
+        frm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const imageUrl = urlInput.value.trim();
+            if (!imageUrl) return;
+
+            clearUI();
+            loading.classList.remove("hidden");
+            const t0 = performance.now();
+            try {
+                const url = `${API_ENDPOINT}?image_url=${encodeURIComponent(imageUrl)}`;
+                const res = await fetch(url, { method: "GET" });
+                const t1 = performance.now();
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const json = await res.json();
+                const { data, timing } = normalizeResponse(json);
+
+                render(data, imageUrl);
+                showTiming(timing, (t1 - t0) / 1000);
+
+                if (!data.length) {
+                    notice.textContent = "No results from API.";
+                    notice.classList.remove("hidden");
+                }
+            } catch (ex) {
+                showError(`Failed to fetch from API. ${ex.message}. If developing locally, enable CORS in FastAPI.`);
+            } finally {
+                loading.classList.add("hidden");
+            }
+        });
+
+        document.getElementById("demo-btn").addEventListener("click", () => {
+            urlInput.value = "https://m.media-amazon.com/images/I/719CKBe6igL._AC_SL1500_.jpg";
+            render(DEMO_DATA, urlInput.value);
+            // Show only client time for demo (no server timings)
+            showTiming(null, 0);
+            notice.textContent = "Showing demo data (static).";
+            notice.classList.remove("hidden");
+        });
+
+        // Initial state
+        empty.classList.remove("hidden");
+    </script>
+</body>
+
+</html>

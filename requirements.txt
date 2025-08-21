@@ -1,0 +1,9 @@
+accelerate==1.9.0
+open_clip_torch==3.1.0
+qdrant-client==1.15.1
+transformers==4.55.0
+celery==5.5.3
+fastapi == 0.116.1
+fastapi-cli == 0.0.8
+uvicorn == 0.35.0
+requests==2.32.4
