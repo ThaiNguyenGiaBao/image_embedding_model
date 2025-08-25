@@ -1,0 +1,11 @@
+
+
+services:
+  image_embedding:
+    container_name: ai-trending_image-embedding
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8889:8889"
+
