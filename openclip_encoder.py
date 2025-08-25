@@ -3,6 +3,8 @@ import open_clip
 from PIL import Image
 import requests
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 
 
 class OpenClipEncoder:
@@ -17,6 +19,7 @@ class OpenClipEncoder:
         self.device = torch.device(device)
         self.model, self.preprocess_train, self.preprocess_val = open_clip.create_model_and_transforms(self.model_name)
         self.model = self.model.eval().to(self.device)
+        self.tokenizer = open_clip.get_tokenizer(self.model_name)
         print(f"Model {self.model_name} loaded on {self.device}")
                 
         if self.device.type == "cuda":
@@ -36,3 +39,29 @@ class OpenClipEncoder:
         with torch.no_grad(), torch.amp.autocast(device_type=self.device.type, enabled=(self.device.type=="cuda")):
             feats = self.model.encode_image(images, normalize=True)   # (1, D)
         return feats.squeeze(0).detach().to(torch.float32).cpu().numpy().tolist()
+
+    def encode_text(self, text):
+        texts = self.tokenizer([text]).to(self.device)
+        with torch.no_grad(), torch.amp.autocast(device_type=self.device.type, enabled=(self.device.type=="cuda")):
+            feats = self.model.encode_text(texts, normalize=True)
+        return feats.squeeze(0).detach().to(torch.float32).cpu().numpy().tolist()
+    
+    
+    def encode_content(self, image_url=None, text=None):
+        if not image_url and not text:
+            raise ValueError("Either image_url or text must be provided.")
+
+        with ProcessPoolExecutor(max_workers=2) as executor:
+            fut_img = executor.submit(self.encode_image, image_url) 
+            fut_text = executor.submit(self.encode_text, text)
+            
+            vector_img = fut_img.result() 
+            vector_text = fut_text.result()
+        
+        # img*0.9 + text*0.1
+        vector = [(v_img*8 + v_text*2)/10 for v_img, v_text in zip(vector_img, vector_text)]
+        return vector
+        
+       
+            
+        

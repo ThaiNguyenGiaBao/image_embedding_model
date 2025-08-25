@@ -26,4 +26,29 @@ def encode_image(image_url: str):
         return {"data": vector}
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/encode_text")
+def encode_text(text: str):
+    if not encoder:
+        return {"error": "Encoder not initialized. Set PRELOAD_MODEL=1 to initialize."}
     
+    try:
+        # Encode the text to get the vector
+        vector = encoder.encode_text(text)
+     
+        return {"data": vector}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/encode_content")
+def encode_content(image_url: str = None, text: str = None):
+    if not encoder:
+        return {"error": "Encoder not initialized. Set PRELOAD_MODEL=1 to initialize."}
+    
+    try:
+        # Encode the image URL to get the vector
+        vector = encoder.encode_content(image_url=image_url, text=text)
+     
+        return {"data": vector}
+    except Exception as e:
+        return {"error": str(e)}
